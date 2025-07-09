@@ -23,12 +23,22 @@ export default function LoginPage() {
 
   useEffect(() => {
     // Check if we have proper environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wzstatxvpedrymfjkuof.supabase.co"
-    const supabaseKey =
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6c3RhdHh2cGVkcnltZmprdW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5Njc1MTgsImV4cCI6MjA2NzU0MzUxOH0.oyYv-QGrL73vRmXRafRUrKv-U4Uloe06KGreiIkndWw"
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-    if (!supabaseUrl || !supabaseKey || supabaseUrl.includes("your-project") || supabaseKey.includes("your-anon-key")) {
+    // Check for placeholder values that indicate demo mode
+    const placeholderValues = [
+      "your_supabase_project_url_here",
+      "your_supabase_anon_key_here",
+      "your-project-id.supabase.co",
+      "https://your-project-id.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.your-anon-key-here",
+    ]
+
+    const isPlaceholder = (value: string) =>
+      placeholderValues.some((placeholder) => value.includes(placeholder) || placeholder.includes(value))
+
+    if (!supabaseUrl || !supabaseKey || isPlaceholder(supabaseUrl) || isPlaceholder(supabaseKey)) {
       setIsDemo(true)
       setMessage({
         type: "info",
@@ -50,11 +60,12 @@ export default function LoginPage() {
     // Check if user is already logged in
     const checkUser = async () => {
       try {
-        if (supabase) {
+        if (supabase && !isDemo) {
           const {
             data: { user },
           } = await supabase.auth.getUser()
           if (user) {
+            console.log("User already logged in, redirecting to dashboard")
             router.push("/dashboard")
           }
         }
@@ -63,10 +74,10 @@ export default function LoginPage() {
       }
     }
 
-    if (!isDemo && supabase) {
+    if (supabase) {
       checkUser()
     }
-  }, [router, supabase, isDemo])
+  }, [router, supabase])
 
   // Wait for Supabase client
   if (!supabase) {
@@ -102,10 +113,16 @@ export default function LoginPage() {
       setLoading(true)
       setMessage({ type: "info", text: "Connecting to Google..." })
 
+      // Get the current origin for the redirect URL
+      const origin = window.location.origin
+      const redirectTo = `${origin}/api/auth/callback`
+
+      console.log("Starting Google OAuth with redirect:", redirectTo)
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo,
           queryParams: {
             access_type: "offline",
             prompt: "consent",

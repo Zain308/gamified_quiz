@@ -8,6 +8,8 @@ export async function GET(request: NextRequest) {
   const error = requestUrl.searchParams.get("error")
   const errorDescription = requestUrl.searchParams.get("error_description")
 
+  console.log("Auth callback received:", { code: !!code, error, errorDescription })
+
   if (error) {
     console.error("Auth callback error:", error, errorDescription)
     return NextResponse.redirect(
@@ -17,7 +19,11 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     try {
-      const supabase = createRouteHandlerClient({ cookies })
+      const cookieStore = await cookies()
+      const supabase = createRouteHandlerClient({
+        cookies: () => cookieStore,
+      })
+
       const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
       if (exchangeError) {
@@ -28,6 +34,8 @@ export async function GET(request: NextRequest) {
       }
 
       if (data.user) {
+        console.log("User authenticated successfully:", data.user.email)
+
         // Check if this is a new user (first time signing in)
         const isNewUser = data.user.created_at === data.user.last_sign_in_at
 
@@ -56,5 +64,6 @@ export async function GET(request: NextRequest) {
   }
 
   // Fallback redirect
+  console.log("No code or error, redirecting to dashboard")
   return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
 }

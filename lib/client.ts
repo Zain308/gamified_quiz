@@ -73,6 +73,12 @@ function createMockClient() {
       signOut: async () => {
         return { error: null }
       },
+      onAuthStateChange: (callback: any) => {
+        // Mock auth state change listener
+        return {
+          data: { subscription: { unsubscribe: () => {} } },
+        }
+      },
     },
   }
 }
@@ -87,16 +93,19 @@ export function createClient() {
 
   // Validate URL format for real mode
   if (!isValidUrl(supabaseUrl)) {
-    throw new Error(
-      `Invalid Supabase URL format: "${supabaseUrl}"\n` + "Expected format: https://your-project-id.supabase.co",
-    )
+    console.error(`Invalid Supabase URL format: "${supabaseUrl}"`)
+    console.log("Expected format: https://your-project-id.supabase.co")
+    // Return mock client as fallback
+    return createMockClient()
   }
 
   try {
     return createBrowserClient(supabaseUrl, supabaseAnonKey)
   } catch (error) {
     console.error("Failed to create Supabase client:", error)
-    throw new Error("Failed to initialize Supabase client. Please check your configuration.")
+    console.log("Falling back to demo mode")
+    // Return mock client as fallback
+    return createMockClient()
   }
 }
 
