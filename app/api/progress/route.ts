@@ -3,48 +3,71 @@ import { getServerClient } from "@/lib/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { topic, level, score, totalQuestions } = await request.json()
+    const { topic, level, score, completed } = await request.json()
 
-    console.log("📊 Progress update request:", { topic, level, score, totalQuestions })
+    const supabase = await getServerClient()
 
-    // Validate input
-    if (!topic || !level || score === undefined || !totalQuestions) {
-      return NextResponse.json(
-        { error: "Missing required fields: topic, level, score, totalQuestions" },
-        { status: 400 },
-      )
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get Supabase client
-    const supabase = getServerClient()
+    const { data, error } = await supabase
+      .from("user_progress")
+      .upsert({
+        user_id: user.id,
+        topic,
+        level,
+        score,
+        completed,
+        completed_at: completed ? new Date().toISOString() : null,
+      })
+      .select()
 
-    // For demo purposes, we'll simulate saving progress
-    // In a real app, you'd save to the database here
-    console.log("✅ Progress saved successfully (demo mode)")
-
-    // Simulate a successful database response
-    const progressData = {
-      id: `progress_${Date.now()}`,
-      topic,
-      level,
-      score,
-      totalQuestions,
-      percentage: Math.round((score / totalQuestions) * 100),
-      completedAt: new Date().toISOString(),
-      xpGained: score * 10, // 10 XP per correct answer
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Progress saved successfully",
-      data: progressData,
-    })
+    return NextResponse.json({ success: true, data })
   } catch (error) {
-    console.error("❌ Error saving progress:", error)
-    return NextResponse.json({ error: "Failed to save progress" }, { status: 500 })
+    console.error("Error updating progress:", error)
+    return NextResponse.json({ error: "Failed to update progress" }, { status: 500 })
   }
 }
 
-export async function GET() {
-  return NextResponse.json({ message: "Progress API is working. Use POST to save progress." })
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const topic = searchParams.get("topic")
+
+    const supabase = await getServerClient()
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    let query = supabase.from("user_progress").select("*").eq("user_id", user.id).order("level", { ascending: true })
+
+    if (topic) {
+      query = query.eq("topic", topic)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ progress: data })
+  } catch (error) {
+    console.error("Error fetching progress:", error)
+    return NextResponse.json({ error: "Failed to fetch progress" }, { status: 500 })
+  }
 }

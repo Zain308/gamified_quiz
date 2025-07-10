@@ -1,20 +1,20 @@
-import { createClient } from "@supabase/supabase-js"
+import { createBrowserClient } from "@supabase/ssr"
+import { createServerClient as createServerSupabaseClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
-// Use environment variables with fallbacks to your actual credentials
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wzstatxvpedrymfjkuof.supabase.co"
-const supabaseKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6c3RhdHh2cGVkcnltZmprdW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5Njc1MTgsImV4cCI6MjA2NzU0MzUxOH0.oyYv-QGrL73vRmXRafRUrKv-U4Uloe06KGreiIkndWw"
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
 
 // Client-side Supabase client (for use in Client Components only)
-export const supabaseClient = createClient(supabaseUrl, supabaseKey)
+export function createClient() {
+  return createBrowserClient(supabaseUrl, supabaseAnonKey)
+}
 
 // Server-side Supabase client for Server Components and API routes
 export async function createServerClient() {
   const cookieStore = await cookies()
 
-  return createClient(supabaseUrl, supabaseKey, {
+  return createServerSupabaseClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       get(name: string) {
         return cookieStore.get(name)?.value

@@ -1,21 +1,32 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Mail, AlertCircle, CheckCircle, Chrome } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Loader2, Mail, AlertCircle, CheckCircle, Chrome, Eye, EyeOff, User } from "lucide-react"
 import { createClient } from "@/lib/client"
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null)
   const [isDemo, setIsDemo] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [activeTab, setActiveTab] = useState("signin")
   const router = useRouter()
   const [supabase, setSupabase] = useState<any>(null)
 
-  // Initialize Supabase safely (handles demo mode & fallbacks defined in lib/client)
+  // Form states
+  const [signInForm, setSignInForm] = useState({ email: "", password: "" })
+  const [signUpForm, setSignUpForm] = useState({ email: "", password: "", confirmPassword: "" })
+
+  // Initialize Supabase safely
   useEffect(() => {
     const client = createClient()
     setSupabase(client)
@@ -23,26 +34,16 @@ export default function LoginPage() {
 
   useEffect(() => {
     // Check if we have proper environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wzstatxvpedrymfjkuof.supabase.co"
+    const supabaseKey =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6c3RhdHh2cGVkcnltZmprdW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5Njc1MTgsImV4cCI6MjA2NzU0MzUxOH0.oyYv-QGrL73vRmXRafRUrKv-U4Uloe06KGreiIkndWw"
 
-    // Check for placeholder values that indicate demo mode
-    const placeholderValues = [
-      "your_supabase_project_url_here",
-      "your_supabase_anon_key_here",
-      "your-project-id.supabase.co",
-      "https://your-project-id.supabase.co",
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.your-anon-key-here",
-    ]
-
-    const isPlaceholder = (value: string) =>
-      placeholderValues.some((placeholder) => value.includes(placeholder) || placeholder.includes(value))
-
-    if (!supabaseUrl || !supabaseKey || isPlaceholder(supabaseUrl) || isPlaceholder(supabaseKey)) {
+    if (!supabaseUrl || !supabaseKey || supabaseUrl.includes("your-project") || supabaseKey.includes("your-anon-key")) {
       setIsDemo(true)
       setMessage({
         type: "info",
-        text: "Demo mode: Environment variables not configured. Using demo authentication.",
+        text: "Demo mode: Environment variables not configured. You can still test the app!",
       })
     }
 
@@ -60,12 +61,11 @@ export default function LoginPage() {
     // Check if user is already logged in
     const checkUser = async () => {
       try {
-        if (supabase && !isDemo) {
+        if (supabase) {
           const {
             data: { user },
           } = await supabase.auth.getUser()
           if (user) {
-            console.log("User already logged in, redirecting to dashboard")
             router.push("/dashboard")
           }
         }
@@ -74,16 +74,19 @@ export default function LoginPage() {
       }
     }
 
-    if (supabase) {
+    if (!isDemo && supabase) {
       checkUser()
     }
-  }, [router, supabase])
+  }, [router, supabase, isDemo])
 
   // Wait for Supabase client
   if (!supabase) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <span className="text-gray-600">Loading...</span>
+        </div>
       </div>
     )
   }
@@ -94,13 +97,10 @@ export default function LoginPage() {
       setLoading(true)
       setMessage({ type: "info", text: "Connecting to Google..." })
 
-      // Simulate OAuth delay
       setTimeout(() => {
         setMessage({ type: "info", text: "Please select your Gmail account to continue..." })
-
         setTimeout(() => {
           setMessage({ type: "success", text: "Successfully authenticated! Redirecting to dashboard..." })
-
           setTimeout(() => {
             router.push("/dashboard")
           }, 1500)
@@ -113,16 +113,10 @@ export default function LoginPage() {
       setLoading(true)
       setMessage({ type: "info", text: "Connecting to Google..." })
 
-      // Get the current origin for the redirect URL
-      const origin = window.location.origin
-      const redirectTo = `${origin}/api/auth/callback`
-
-      console.log("Starting Google OAuth with redirect:", redirectTo)
-
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo,
+          redirectTo: `${window.location.origin}/api/auth/callback`,
           queryParams: {
             access_type: "offline",
             prompt: "consent",
@@ -134,7 +128,6 @@ export default function LoginPage() {
         throw error
       }
 
-      // The redirect will happen automatically
       setMessage({ type: "info", text: "Redirecting to Google..." })
     } catch (error: any) {
       console.error("Google login error:", error)
@@ -142,6 +135,121 @@ export default function LoginPage() {
         type: "error",
         text: error.message || "Failed to connect with Google. Please try again.",
       })
+      setLoading(false)
+    }
+  }
+
+  const handleEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!signInForm.email || !signInForm.password) {
+      setMessage({ type: "error", text: "Please fill in all fields" })
+      return
+    }
+
+    if (isDemo) {
+      setLoading(true)
+      setMessage({ type: "info", text: "Signing in..." })
+
+      setTimeout(() => {
+        if (signInForm.email === "demo@example.com" && signInForm.password === "demo123") {
+          setMessage({ type: "success", text: "Demo login successful! Redirecting..." })
+          setTimeout(() => router.push("/dashboard"), 1000)
+        } else {
+          setMessage({ type: "error", text: "Demo credentials: demo@example.com / demo123" })
+          setLoading(false)
+        }
+      }, 1500)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setMessage({ type: "info", text: "Signing in..." })
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: signInForm.email,
+        password: signInForm.password,
+      })
+
+      if (error) {
+        throw error
+      }
+
+      setMessage({ type: "success", text: "Successfully signed in! Redirecting..." })
+      setTimeout(() => router.push("/dashboard"), 1000)
+    } catch (error: any) {
+      console.error("Sign in error:", error)
+      setMessage({
+        type: "error",
+        text: error.message || "Failed to sign in. Please check your credentials.",
+      })
+      setLoading(false)
+    }
+  }
+
+  const handleEmailSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!signUpForm.email || !signUpForm.password || !signUpForm.confirmPassword) {
+      setMessage({ type: "error", text: "Please fill in all fields" })
+      return
+    }
+
+    if (signUpForm.password !== signUpForm.confirmPassword) {
+      setMessage({ type: "error", text: "Passwords do not match" })
+      return
+    }
+
+    if (signUpForm.password.length < 6) {
+      setMessage({ type: "error", text: "Password must be at least 6 characters long" })
+      return
+    }
+
+    if (isDemo) {
+      setLoading(true)
+      setMessage({ type: "info", text: "Creating demo account..." })
+
+      setTimeout(() => {
+        setMessage({ type: "success", text: "Demo account created! Redirecting..." })
+        setTimeout(() => router.push("/dashboard"), 1000)
+      }, 1500)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setMessage({ type: "info", text: "Creating your account..." })
+
+      const { data, error } = await supabase.auth.signUp({
+        email: signUpForm.email,
+        password: signUpForm.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+        },
+      })
+
+      if (error) {
+        throw error
+      }
+
+      if (data.user && !data.user.email_confirmed_at) {
+        setMessage({
+          type: "success",
+          text: "Account created! Please check your email to verify your account before signing in.",
+        })
+        setActiveTab("signin")
+      } else {
+        setMessage({ type: "success", text: "Account created successfully! Redirecting..." })
+        setTimeout(() => router.push("/dashboard"), 1000)
+      }
+    } catch (error: any) {
+      console.error("Sign up error:", error)
+      setMessage({
+        type: "error",
+        text: error.message || "Failed to create account. Please try again.",
+      })
+    } finally {
       setLoading(false)
     }
   }
@@ -171,14 +279,14 @@ export default function LoginPage() {
               QuizMaster Pro
             </h1>
           </div>
-          <p className="text-gray-600">Sign in to continue your learning journey</p>
+          <p className="text-gray-600">Welcome to your learning journey</p>
         </div>
 
-        {/* Login Card */}
+        {/* Auth Card */}
         <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-xl text-center">Welcome Back</CardTitle>
-            <CardDescription className="text-center">Choose your preferred sign-in method</CardDescription>
+            <CardTitle className="text-xl text-center">Get Started</CardTitle>
+            <CardDescription className="text-center">Sign in to your account or create a new one</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Status Message */}
@@ -221,6 +329,153 @@ export default function LoginPage() {
               )}
             </Button>
 
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-500">Or continue with email</span>
+              </div>
+            </div>
+
+            {/* Email Auth Tabs */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="signin" className="space-y-4 mt-4">
+                <form onSubmit={handleEmailSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-email">Email</Label>
+                    <Input
+                      id="signin-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={signInForm.email}
+                      onChange={(e) => setSignInForm({ ...signInForm, email: e.target.value })}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="signin-password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={signInForm.password}
+                        onChange={(e) => setSignInForm({ ...signInForm, password: e.target.value })}
+                        disabled={loading}
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                        disabled={loading}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg transition-all duration-200 hover:shadow-xl"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <div className="flex items-center space-x-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Signing in...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <Mail className="h-4 w-4" />
+                        <span>Sign In</span>
+                      </div>
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="signup" className="space-y-4 mt-4">
+                <form onSubmit={handleEmailSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={signUpForm.email}
+                      onChange={(e) => setSignUpForm({ ...signUpForm, email: e.target.value })}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="signup-password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Create a password (min. 6 characters)"
+                        value={signUpForm.password}
+                        onChange={(e) => setSignUpForm({ ...signUpForm, password: e.target.value })}
+                        disabled={loading}
+                        required
+                        minLength={6}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                        disabled={loading}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                    <Input
+                      id="signup-confirm-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Confirm your password"
+                      value={signUpForm.confirmPassword}
+                      onChange={(e) => setSignUpForm({ ...signUpForm, confirmPassword: e.target.value })}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white shadow-lg transition-all duration-200 hover:shadow-xl"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <div className="flex items-center space-x-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Creating account...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <User className="h-4 w-4" />
+                        <span>Create Account</span>
+                      </div>
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+
             {/* Demo Mode */}
             {isDemo && (
               <>
@@ -229,14 +484,14 @@ export default function LoginPage() {
                     <span className="w-full border-t border-gray-300" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-gray-500">Or</span>
+                    <span className="bg-white px-2 text-gray-500">Demo Mode</span>
                   </div>
                 </div>
 
                 <Button
                   onClick={handleDemoLogin}
                   disabled={loading}
-                  className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg transition-all duration-200 hover:shadow-xl"
+                  className="w-full h-11 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg transition-all duration-200 hover:shadow-xl"
                 >
                   {loading ? (
                     <div className="flex items-center space-x-2">
@@ -245,11 +500,16 @@ export default function LoginPage() {
                     </div>
                   ) : (
                     <div className="flex items-center space-x-2">
-                      <Mail className="h-4 w-4" />
-                      <span className="font-medium">Continue as Demo User</span>
+                      <User className="h-4 w-4" />
+                      <span>Try Demo (No Signup Required)</span>
                     </div>
                   )}
                 </Button>
+
+                <div className="text-xs text-center text-gray-500 space-y-1">
+                  <p>Demo credentials for email login:</p>
+                  <p className="font-mono bg-gray-100 px-2 py-1 rounded">demo@example.com / demo123</p>
+                </div>
               </>
             )}
 
@@ -275,7 +535,9 @@ export default function LoginPage() {
                 <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
                 <div className="text-sm text-amber-800">
                   <p className="font-medium">Demo Mode Active</p>
-                  <p className="text-xs mt-1">Configure your environment variables to enable full authentication.</p>
+                  <p className="text-xs mt-1">
+                    Configure your Supabase environment variables to enable full authentication.
+                  </p>
                 </div>
               </div>
             </CardContent>
