@@ -13,9 +13,17 @@ const PLACEHOLDER_VALUES = [
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.your-anon-key-here",
 ]
 
+// v0 preview sandboxes are served from *.vusercontent.net and cannot reach
+// external origins such as *.supabase.co – force Demo Mode there.
+const isV0Preview = typeof window !== "undefined" && window.location.hostname.endsWith(".vusercontent.net")
+
 // Check if we're in demo mode (no real credentials provided)
 const isDemoMode =
-  !supabaseUrl || !supabaseAnonKey || isPlaceholderValue(supabaseUrl) || isPlaceholderValue(supabaseAnonKey)
+  isV0Preview ||
+  !supabaseUrl ||
+  !supabaseAnonKey ||
+  isPlaceholderValue(supabaseUrl) ||
+  isPlaceholderValue(supabaseAnonKey)
 
 // Validate URL format
 function isValidUrl(string: string): boolean {

@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, Mail, AlertCircle, CheckCircle, Chrome, Eye, EyeOff, User } from "lucide-react"
-import { createClient } from "@/lib/client"
+import { createClient, isDemoMode as defaultDemoMode } from "@/lib/client"
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null)
-  const [isDemo, setIsDemo] = useState(false)
+  // Initialise demo mode based on the shared flag from lib/client
+  const [isDemo, setIsDemo] = useState(defaultDemoMode)
   const [showPassword, setShowPassword] = useState(false)
   const [activeTab, setActiveTab] = useState("signin")
   const router = useRouter()
@@ -33,18 +34,23 @@ export default function LoginPage() {
   }, [])
 
   useEffect(() => {
-    // Check if we have proper environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wzstatxvpedrymfjkuof.supabase.co"
-    const supabaseKey =
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6c3RhdHh2cGVkcnltZmprdW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5Njc1MTgsImV4cCI6MjA2NzU0MzUxOH0.oyYv-QGrL73vRmXRafRUrKv-U4Uloe06KGreiIkndWw"
-
-    if (!supabaseUrl || !supabaseKey || supabaseUrl.includes("your-project") || supabaseKey.includes("your-anon-key")) {
-      setIsDemo(true)
+    // If we were auto-switched to Demo Mode (e.g. v0 preview), show a banner
+    if (defaultDemoMode) {
       setMessage({
         type: "info",
-        text: "Demo mode: Environment variables not configured. You can still test the app!",
+        text: "Running in Demo Mode – external Supabase calls are disabled in the preview sandbox.",
       })
+    } else {
+      // Fallback check in case env vars are missing in non-preview environments
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (!supabaseUrl || !supabaseKey) {
+        setIsDemo(true)
+        setMessage({
+          type: "info",
+          text: "Demo mode: Environment variables not configured. You can still test the app!",
+        })
+      }
     }
 
     // Check for auth callback messages
